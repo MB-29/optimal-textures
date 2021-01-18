@@ -14,3 +14,8 @@ image = Image.open(image_path)
 generator = Generator(image)
 with torch.no_grad():
     generated_image = generator.run()
+
+for key, value in generator.error_values.items():
+    plt.plot(value, label='key')
+plt.legend()
+plt.show()

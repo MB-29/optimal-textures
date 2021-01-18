@@ -63,6 +63,8 @@ class Generator:
         self.encoder_layers = {}
         self.layer_decoders = layer_decoders
 
+        self.error_values ={layer_name : [] for layer_name in observed_layers.keys()}
+
         self.n_bins = n_bins
 
         self.encoder.eval()
@@ -75,7 +77,7 @@ class Generator:
             layer.register_forward_hook(
                 output_value_hook(layer_name, self.encoder_layers))
 
-            # symmetric decoder
+            # load symmetric decoder
             decoder = layer_decoders[layer_name]
             decoder_state_path = os.path.join(
                 decoder_state_dir_path, f'{layer_name}_decoder_state.pth')
@@ -85,7 +87,7 @@ class Generator:
 
     def run(self):
         
-        # initialise with noise
+        # initialize with noise
         self.target_batch = torch.randn_like(self.input_batch)
 
         for global_pass in range(self.n_global_passes):
@@ -95,21 +97,21 @@ class Generator:
                 self.encoder(self.input_batch)
                 source_layer = self.encoder_layers[layer_name]
 
-                layer_shape = source_layer.shape
-
                 self.encoder(self.target_batch)
                 target_layer = self.encoder_layers[layer_name]
 
                 target_layer = self.optimal_transport(
                     source_layer.squeeze(), target_layer.squeeze())
-                target_layer = target_layer.view(layer_shape)
+                target_layer = target_layer.view_as(source_layer)
 
-                print(target_layer.type())
+                # Compute error
+                error = torch.norm(target_layer - source_layer)
+                self.error_values[layer_name].append(error)
 
                 decoder = self.layer_decoders[layer_name]
                 self.target_batch = decoder(target_layer)
 
-        return self.target_batch
+        return self.target_batch[0].numpy().T
 
     def optimal_transport(self, source_layer, target_layer):
 

@@ -2,15 +2,6 @@
 import torch
 import torch.nn as nn
 
-state_path = './decoder_paths'
-
-decoder_names = [
-	'feature_invertor_conv1_1',
-	'feature_invertor_conv2_1',
-	'feature_invertor_conv3_1',
-	'feature_invertor_conv4_1',
-	'feature_invertor_conv5_1'
-]
 
 
 feature_invertor_conv1_1 = nn.Sequential(  # Sequential,

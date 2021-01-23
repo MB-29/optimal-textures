@@ -9,42 +9,47 @@ from generator import Generator
 image_path = './texture.jpg'
 image_path = './texture2.jpg'
 
-n_passes = 5
+n_passes = 1
 
 observed_layers = {
     'Relu5_1': {
         'index': 29,
-        'decoder': feature_invertor_conv5_1
-        # 'feature_shape': (512, 14, 14)
+        'decoder': feature_invertor_conv5_1,
+        'n_epochs': 10,
+        'n_slices': 10,
     },
     'Relu4_1': {
         'index': 20,
-        'decoder': feature_invertor_conv4_1
-        # 'feature_shape': (512, 28, 28)
+        'decoder': feature_invertor_conv4_1,
+        'n_epochs': 10,
+        'n_slices': 10,
     },
     'Relu3_1': {
         'index': 11,
-        'decoder': feature_invertor_conv3_1
-        # 'feature_shape': (256, 56, 56),
+        'decoder': feature_invertor_conv3_1,
+        'n_epochs': 150,
+        'n_slices': 10,
     },
     'Relu2_1': {
         'index': 6,
-        'decoder': feature_invertor_conv2_1
-        # 'feature_shape': (128, 112, 112),
+        'decoder': feature_invertor_conv2_1,
+        'n_epochs': 50,
+        'n_slices': 10,
     },
     'Relu1_1': {
         'index': 1,
-        'decoder': feature_invertor_conv1_1
-        # 'feature_shape': (128, 112, 112),
+        'decoder': feature_invertor_conv1_1,
+        'n_epochs': 100,
+        'n_slices': 10,
     }
 }
 
 image = Image.open(image_path)
 
 generator = Generator(image, observed_layers)
-generator.train_decoders(10)
+generator.train_layer_decoders()
 with torch.no_grad():
-    pass_generated_images = generator.run(n_passes)
+    pass_generated_images = generator.generate(n_passes)
 
 for index, image in enumerate(pass_generated_images):
     plt.subplot(n_passes, len(generator.observed_layers), index+1)

@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import torch
+import torch.nn as nn
 from torchvision.models import vgg19
 from torchvision import transforms
 import matplotlib.pyplot as plt
@@ -56,7 +57,7 @@ class Generator:
             layer.register_forward_hook(
                 output_value_hook(layer_name, self.encoder_layers))
 
-    def train_decoders(self, n_epochs=10):
+    def train_layer_decoders(self):
         for layer_name, layer_information in self.observed_layers.items():
             decoder = layer_information['decoder']
             # decoder_state_path = os.path.join(
@@ -65,17 +66,18 @@ class Generator:
             # decoder = decoder.float()
             # shape = layer_information['shape']
             print(f'training decoder for layer {layer_name}')
-            loss_values = self.train_decoder(layer_name, n_epochs)
+            loss_values = self.train_decoder(layer_name)
             self.decoder_loss_values[layer_name] = loss_values
 
             decoder.eval()
 
     def generate(self, n_global_passes=5):
-
+        
+        self.n_global_passes = n_global_passes
         pass_generated_images = []
 
         # initialize with noise
-        self.target_batch = torch.randn_like(self.input_batch)
+        self.target_tensor = torch.randn_like(self.input_tensor)
 
         for global_pass in range(n_global_passes):
             print(f'global pass {global_pass}')
@@ -85,12 +87,13 @@ class Generator:
                 self.encoder(self.normalized_input_batch)
                 source_layer = self.encoder_layers[layer_name]
 
-                self.encoder(vgg_normalization(self.target_batch))
+                target_batch = vgg_normalization(
+                    self.target_tensor).unsqueeze(0)
+                self.encoder(target_batch)
                 target_layer = self.encoder_layers[layer_name]
-                print(f'target layer shape {target_layer.shape}')
 
-                target_layer = self.optimal_transport(
-                    source_layer.squeeze(), target_layer.squeeze(), n_global_passes)
+                target_layer = self.optimal_transport(layer_name,
+                    source_layer.squeeze(), target_layer.squeeze())
                 target_layer = target_layer.view_as(source_layer)
 
                 # Compute error
@@ -98,27 +101,25 @@ class Generator:
                 self.error_values[layer_name].append(error)
 
                 decoder = layer_information['decoder']
-                self.target_batch = decoder(target_layer)
-                input_reconstruction = decoder(source_layer)
+                self.target_tensor = decoder(target_layer).squeeze()
+                reconstruction_tensor = decoder(source_layer)
 
-                # self.pass_generated_images.append(self.target_batch[0].numpy().T.copy())
-                pass_generated_images.append(
-                    input_reconstruction[0].numpy().T.copy())
+                pass_generated_images.append(self.target_tensor.numpy().T.copy())
 
         return pass_generated_images
 
-    def optimal_transport(self, source_layer, target_layer, n_global_passes):
+    def optimal_transport(self, layer_name, source_layer, target_layer):
 
         n_channels = source_layer.shape[0]
         assert n_channels == target_layer.shape[0]
+        print(f'n_channels = {n_channels}')
 
-        n_slices = n_channels // n_global_passes
-        n_slices = 10
+        n_slices = n_channels // self.n_global_passes
+        # n_slices = self.observed_layers[layer_name]['n_slices']
 
         for slice in range(n_slices):
             # random orthonormal basis
             basis = torch.from_numpy(ortho_group.rvs(n_channels)).float()
-            # basis = torch.eye(n_channels)
 
             # project on the basis
             source_rotated_layer = basis @ source_layer.view(
@@ -151,12 +152,12 @@ class Generator:
 
         return generated_images
 
-    def train_decoder(self, layer_name, n_epochs, learning_rate=1e-3):
+    def train_decoder(self, layer_name, learning_rate=1e-3):
         decoder = self.observed_layers[layer_name]['decoder']
+        n_epochs = self.observed_layers[layer_name]['n_epochs']
         training_loss_values = []
         image_loss = nn.MSELoss()
         optimizer = torch.optim.Adam(decoder.parameters(), lr=learning_rate)
-
         for epoch_index in range(n_epochs):
             #print(f'Epoch {epoch_index}')
             epoch_loss = 0
@@ -181,7 +182,7 @@ class Generator:
 
             training_loss_values.append(epoch_loss)
         return training_loss_values
-        
+
 def sliced_transport(source_layer, target_layer):
 
     n_channels = source_layer.shape[0]

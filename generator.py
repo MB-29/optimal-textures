@@ -37,6 +37,8 @@ class Generator:
 
         self.encoder = vgg19(pretrained=True).float()
         self.encoder.eval()
+        for param in self.encoder.features.parameters():
+            param.requires_grad = False
         self.encoder_layers = {}
         self.set_encoder_hooks(observed_layers)
 

@@ -1,12 +1,12 @@
 import os
 import numpy as np
+from numpy.lib.histograms import histogram
 import torch
 import torch.nn as nn
 from torchvision.models import vgg19
 from torchvision import transforms
 import matplotlib.pyplot as plt
 from scipy.stats import ortho_group
-
 
 
 vgg_normalization = transforms.Normalize(mean=[0.485, 0.456, 0.406],
@@ -26,7 +26,7 @@ def output_value_hook(name, activation_register):
 
 class Generator:
 
-    def __init__(self, image, observed_layers, n_bins=128):
+    def __init__(self, image, observed_layers, n_bins=128, decoder_weights_path=None):
 
         self.width, self.height = image.width, image.height
 
@@ -59,28 +59,42 @@ class Generator:
             layer.register_forward_hook(
                 output_value_hook(layer_name, self.encoder_layers))
 
-    def train_layer_decoders(self):
+    def set_layer_decoders(self, train=False, state_dir_path='decoder_states'):
+
+        # train
+        if train:
+            for layer_name, layer_information in self.observed_layers.items():
+                decoder = layer_information['decoder']
+
+                print(f'training decoder for layer {layer_name}')
+                loss_values = self.train_decoder(layer_name)
+                self.decoder_loss_values[layer_name] = loss_values
+
+        # load or save weights
         for layer_name, layer_information in self.observed_layers.items():
             decoder = layer_information['decoder']
-            # decoder_state_path = os.path.join(
-            #     decoder_state_dir_path, f'{layer_name}_decoder_state.pth')
-            # decoder.load_state_dict(torch.load(decoder_state_path))
-            # decoder = decoder.float()
-            # shape = layer_information['shape']
-            print(f'training decoder for layer {layer_name}')
-            loss_values = self.train_decoder(layer_name)
-            self.decoder_loss_values[layer_name] = loss_values
-
             decoder.eval()
+            decoder_state_path = os.path.join(
+                state_dir_path, f'{layer_name}_decoder_state.pth')
+
+            # save the tained weights
+            if train:
+                torch.save(decoder.state_dict(), decoder_state_path)
+                print(f'saved decoder weights for layer {layer_name}')
+
+            else:
+                decoder.load_state_dict(torch.load(decoder_state_path))
+                print(f'loaded decoder weights for layer {layer_name}')
+                decoder = decoder.float()
 
     def generate(self, n_global_passes=5):
-        
+
         self.n_global_passes = n_global_passes
         pass_generated_images = []
 
         # initialize with noise
         self.target_tensor = torch.randn_like(self.input_tensor)
-
+        # self.target_tensor = self.input_tensor
         for global_pass in range(n_global_passes):
             print(f'global pass {global_pass}')
             for layer_name, layer_information in self.observed_layers.items():
@@ -95,18 +109,15 @@ class Generator:
                 target_layer = self.encoder_layers[layer_name]
 
                 target_layer = self.optimal_transport(layer_name,
-                    source_layer.squeeze(), target_layer.squeeze())
+                                                      source_layer.squeeze(), target_layer.squeeze())
                 target_layer = target_layer.view_as(source_layer)
 
-                # Compute error
-                error = torch.norm(target_layer - source_layer)
-                self.error_values[layer_name].append(error)
-
+                # Decode
                 decoder = layer_information['decoder']
                 self.target_tensor = decoder(target_layer).squeeze()
-                reconstruction_tensor = decoder(source_layer)
 
-                pass_generated_images.append(self.target_tensor.numpy().T.copy())
+                generated_image = np.transpose(self.target_tensor.numpy(), (1, 2, 0)).copy()
+                pass_generated_images.append(generated_image)
 
         return pass_generated_images
 
@@ -114,9 +125,9 @@ class Generator:
 
         n_channels = source_layer.shape[0]
         assert n_channels == target_layer.shape[0]
-        print(f'n_channels = {n_channels}')
 
         n_slices = n_channels // self.n_global_passes
+        # n_slices = 1
         # n_slices = self.observed_layers[layer_name]['n_slices']
 
         for slice in range(n_slices):
@@ -136,7 +147,7 @@ class Generator:
 
         return target_layer
 
-    def reconstruct(self):
+    def reconstruct(self, noise_size=0):
 
         generated_images = []
 
@@ -146,6 +157,8 @@ class Generator:
             self.encoder(self.normalized_input_batch)
             source_layer = self.encoder_layers[layer_name]
 
+            source_layer += noise_size * torch.randn_like(source_layer)
+
             decoder = layer_information['decoder']
             input_reconstruction = decoder(source_layer)
 
@@ -154,9 +167,10 @@ class Generator:
 
         return generated_images
 
-    def train_decoder(self, layer_name, learning_rate=1e-3):
+    def train_decoder(self, layer_name):
         decoder = self.observed_layers[layer_name]['decoder']
         n_epochs = self.observed_layers[layer_name]['n_epochs']
+        learning_rate = self.observed_layers[layer_name].get('learning_rate', 1e-3)
         training_loss_values = []
         image_loss = nn.MSELoss()
         optimizer = torch.optim.Adam(decoder.parameters(), lr=learning_rate)
@@ -185,6 +199,7 @@ class Generator:
             training_loss_values.append(epoch_loss)
         return training_loss_values
 
+
 def sliced_transport(source_layer, target_layer):
 
     n_channels = source_layer.shape[0]
@@ -199,6 +214,3 @@ def sliced_transport(source_layer, target_layer):
             target_histogram)] = source_histogram[np.argsort(source_histogram)]
 
     return target_layer
-
-
-

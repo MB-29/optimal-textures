@@ -87,15 +87,15 @@ class Generator:
                 print(f'loaded decoder weights for layer {layer_name}')
                 decoder = decoder.float()
 
-    def generate(self, n_global_passes=5):
+    def generate(self, n_passes=5):
 
-        self.n_global_passes = n_global_passes
+        self.n_passes = n_passes
         pass_generated_images = []
 
         # initialize with noise
         self.target_tensor = torch.randn_like(self.input_tensor)
         # self.target_tensor = self.input_tensor
-        for global_pass in range(n_global_passes):
+        for global_pass in range(n_passes):
             print(f'global pass {global_pass}')
             for layer_name, layer_information in self.observed_layers.items():
                 print(f'layer {layer_name}')
@@ -126,9 +126,8 @@ class Generator:
         n_channels = source_layer.shape[0]
         assert n_channels == target_layer.shape[0]
 
-        n_slices = n_channels // self.n_global_passes
-        # n_slices = 1
-        # n_slices = self.observed_layers[layer_name]['n_slices']
+        default_n_slices = n_channels // self.n_passes
+        n_slices = self.observed_layers[layer_name].get('n_slices', default_n_slices)
 
         for slice in range(n_slices):
             # random orthonormal basis

@@ -1,40 +1,25 @@
 import os
 import numpy as np
-from numpy.lib.histograms import histogram
 import torch
 import torch.nn as nn
 from torchvision.models import vgg19
-from torchvision import transforms
 import matplotlib.pyplot as plt
 from scipy.stats import ortho_group
 
-
-vgg_normalization = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                         std=[0.229, 0.224, 0.225])
-image_preprocessing = transforms.Compose([
-    transforms.Resize(256),
-    transforms.CenterCrop(224),
-    transforms.ToTensor()
-])
-
-
-def output_value_hook(name, activation_register):
-    def hook(model, input, output):
-        activation_register[name] = output.data
-    return hook
+from utils import output_value_hook, sliced_transport, image_preprocessing, vgg_normalization
 
 
 class Generator:
 
-    def __init__(self, image, observed_layers, n_bins=128, decoder_weights_path=None):
+    def __init__(self, image, observed_layers, n_bins=128):
 
-        self.width, self.height = image.width, image.height
+        # source image
+        self.source_tensor = image_preprocessing(image)
+        self.normalized_source_batch = vgg_normalization(
+            self.source_tensor).unsqueeze(0)
+        self.source_batch = self.source_tensor.unsqueeze(0)
 
-        self.input_tensor = image_preprocessing(image)
-        self.normalized_input_batch = vgg_normalization(
-            self.input_tensor).unsqueeze(0)
-        self.input_batch = self.input_tensor.unsqueeze(0)
-
+        # set encoder
         self.encoder = vgg19(pretrained=True).float()
         self.encoder.eval()
         for param in self.encoder.features.parameters():
@@ -93,30 +78,34 @@ class Generator:
         pass_generated_images = []
 
         # initialize with noise
-        self.target_tensor = torch.randn_like(self.input_tensor)
-        # self.target_tensor = self.input_tensor
+        self.target_tensor = torch.randn_like(self.source_tensor)
+
         for global_pass in range(n_passes):
             print(f'global pass {global_pass}')
             for layer_name, layer_information in self.observed_layers.items():
                 print(f'layer {layer_name}')
 
-                self.encoder(self.normalized_input_batch)
+                # forward pass on source image
+                self.encoder(self.normalized_source_batch)
                 source_layer = self.encoder_layers[layer_name]
 
+                # forward pass on target image
                 target_batch = vgg_normalization(
                     self.target_tensor).unsqueeze(0)
                 self.encoder(target_batch)
                 target_layer = self.encoder_layers[layer_name]
 
+                # transport
                 target_layer = self.optimal_transport(layer_name,
                                                       source_layer.squeeze(), target_layer.squeeze())
                 target_layer = target_layer.view_as(source_layer)
 
-                # Decode
+                # decode
                 decoder = layer_information['decoder']
                 self.target_tensor = decoder(target_layer).squeeze()
 
-                generated_image = np.transpose(self.target_tensor.numpy(), (1, 2, 0)).copy()
+                generated_image = np.transpose(
+                    self.target_tensor.numpy(), (1, 2, 0)).copy()
                 pass_generated_images.append(generated_image)
 
         return pass_generated_images
@@ -127,7 +116,8 @@ class Generator:
         assert n_channels == target_layer.shape[0]
 
         default_n_slices = n_channels // self.n_passes
-        n_slices = self.observed_layers[layer_name].get('n_slices', default_n_slices)
+        n_slices = self.observed_layers[layer_name].get(
+            'n_slices', default_n_slices)
 
         for slice in range(n_slices):
             # random orthonormal basis
@@ -148,28 +138,28 @@ class Generator:
 
     def reconstruct(self, noise_size=0):
 
-        generated_images = []
+        reconstructed_images = []
 
         for layer_name, layer_information in self.observed_layers.items():
             print(f'layer {layer_name}')
 
-            self.encoder(self.normalized_input_batch)
+            self.encoder(self.normalized_source_batch)
             source_layer = self.encoder_layers[layer_name]
 
             source_layer += noise_size * torch.randn_like(source_layer)
 
             decoder = layer_information['decoder']
-            input_reconstruction = decoder(source_layer)
+            input_reconstruction = np.transpose(
+                decoder(source_layer), (1, 2, 0)).copy()
+            reconstructed_images.append(input_reconstruction)
 
-            generated_images.append(
-                input_reconstruction[0].numpy().T.copy())
-
-        return generated_images
+        return reconstructed_images
 
     def train_decoder(self, layer_name):
         decoder = self.observed_layers[layer_name]['decoder']
         n_epochs = self.observed_layers[layer_name]['n_epochs']
-        learning_rate = self.observed_layers[layer_name].get('learning_rate', 1e-3)
+        learning_rate = self.observed_layers[layer_name].get(
+            'learning_rate', 1e-3)
         training_loss_values = []
         image_loss = nn.MSELoss()
         optimizer = torch.optim.Adam(decoder.parameters(), lr=learning_rate)
@@ -178,7 +168,7 @@ class Generator:
             epoch_loss = 0
 
             # reconstruct
-            self.encoder(vgg_normalization(self.input_tensor).unsqueeze(0))
+            self.encoder(vgg_normalization(self.source_tensor).unsqueeze(0))
             embedding = self.encoder_layers[layer_name]
             generated_tensor = decoder(embedding).squeeze()
 
@@ -186,7 +176,7 @@ class Generator:
             self.encoder(vgg_normalization(generated_tensor).unsqueeze(0))
             generated_embedding = self.encoder_layers[layer_name]
 
-            loss = image_loss(self.input_tensor, generated_tensor) + \
+            loss = image_loss(self.source_tensor, generated_tensor) + \
                 torch.norm(embedding - generated_embedding)
 
             optimizer.zero_grad()
@@ -197,19 +187,3 @@ class Generator:
 
             training_loss_values.append(epoch_loss)
         return training_loss_values
-
-
-def sliced_transport(source_layer, target_layer):
-
-    n_channels = source_layer.shape[0]
-    assert n_channels == target_layer.shape[0]
-
-    for dimension in range(n_channels):
-        source_histogram = source_layer[dimension, :]
-        target_histogram = target_layer[dimension, :]
-
-        # match 1D histograms
-        target_histogram[np.argsort(
-            target_histogram)] = source_histogram[np.argsort(source_histogram)]
-
-    return target_layer

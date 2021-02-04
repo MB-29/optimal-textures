@@ -3,7 +3,7 @@
 
 An implementation of the texture generation algorithm proposed in [Optimal Textures: Fast and Robust Texture Synthesis and Style Transfer through Optimal Transport](https://arxiv.org/abs/2010.14702).
 
-### Example output
+## Example
 
 #### Original image
 ![original](demo/original.jpg)
@@ -31,6 +31,12 @@ If you want to train your decoders on your own image instead, this directory wil
 
 ```bash
 python run.py path_to_source_image path_to_decoder_states_directory -o output_path -n n_passes -t train
+```
+
+* Run the style transfer process with
+
+```bash
+python run.py path_to_source_image path_to_decoder_states_directory -c path_to_content_image -s content_strength -o output_path -n n_passes -t train
 ```
 
 

@@ -6,8 +6,14 @@ An implementation of the texture generation algorithm proposed in [Optimal Textu
 ## Example
 
 #### Texture generation
+```bash
+python run.py scale.jpg decoder_states/scale/ -n 5 
+```
 ![output](demo/generation.png)
 #### Style transfer
+```bash
+python run.py scale.jpg -c university.jpg decoder_states/scale/ -n 5 
+```
 ![output](demo/transfer.png)
 
 ## Usage 
@@ -27,13 +33,13 @@ If you want to train your decoders on your own image instead, this directory wil
 * Run the generation process with
 
 ```bash
-python run.py path_to_source_image path_to_decoder_states_directory -o output_path -n n_passes -t train
+python run.py path_to_source_image path_to_decoder_states_directory -o output_path -n n_passes [--train]
 ```
 
 * Run the style transfer process with
 
 ```bash
-python run.py path_to_source_image path_to_decoder_states_directory -c path_to_content_image -s content_strength -o output_path -n n_passes -t train
+python run.py path_to_source_image path_to_decoder_states_directory -c path_to_content_image -s content_strength -o output_path -n n_passes [--train]
 ```
 
 

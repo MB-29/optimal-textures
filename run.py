@@ -9,23 +9,6 @@ from decoders import *
 from generator import Generator
 from style_transfer import StyleTransfer
 
-arg_parser = argparse.ArgumentParser()
-arg_parser.add_argument('source_image_path', type=str,
-                        help='relative path to the input texture image')
-arg_parser.add_argument('-c', '--content_image_path', type=str,
-                        help='relative path to the content image')
-arg_parser.add_argument('decoder_state_path', type=str,
-                        help='relative path to the decoder states')
-arg_parser.add_argument('-o', '--output_path', type=str,
-                        default='.', help='relative path to the output directory')
-arg_parser.add_argument('-n', '--n_passes', type=int,
-                        default=5, help='number of global passes')
-arg_parser.add_argument('-s', '--content_strength', type=float,
-                        default=0.5, help='strength of the content image')
-arg_parser.add_argument(
-    '-t', '--train', action='store_true', help='train the decoders')
-args = arg_parser.parse_args()
-
 
 def generate(source_image_path, decoder_state_path, n_passes=5, train=False):
     source_image = Image.open(source_image_path)
@@ -47,8 +30,24 @@ def style_transfer(source_image_path, content_image_path, decoder_state_path, co
         pass_generated_images = transfer.transfer(n_passes, content_strength)
     return transfer, pass_generated_images
 
-
 if __name__ == '__main__':
+
+    arg_parser = argparse.ArgumentParser()
+    arg_parser.add_argument('source_image_path', type=str,
+                            help='relative path to the input texture image')
+    arg_parser.add_argument('-c', '--content_image_path', type=str,
+                            help='relative path to the content image')
+    arg_parser.add_argument('decoder_state_path', type=str,
+                            help='relative path to the decoder states')
+    arg_parser.add_argument('-o', '--output_path', type=str,
+                            default='.', help='relative path to the output directory')
+    arg_parser.add_argument('-n', '--n_passes', type=int,
+                            default=5, help='number of global passes')
+    arg_parser.add_argument('-s', '--content_strength', type=float,
+                            default=0.5, help='strength of the content image')
+    arg_parser.add_argument(
+        '-t', '--train', action='store_true', help='train the decoders')
+    args = arg_parser.parse_args()
 
     # texture generation
     if args.content_image_path is None:

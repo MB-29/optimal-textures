@@ -5,17 +5,14 @@ An implementation of the texture generation algorithm proposed in [Optimal Textu
 
 ## Example
 
-#### Original image
-![original](demo/original.jpg)
+#### Texture generation
+![output](demo/generation.png)
+#### Style transfer
+![output](demo/transfer.png)
 
-#### Generated images
-![generated_1](demo/generated_1.png)
-![generated_2](demo/generated_2.png)
-![generated_3](demo/generated_3.png)
+## Usage 
 
-## Run 
-
-* In order to used pre-trained decoder weights, set up a directory containing `.pth` weight files with the form
+* In order to used pre-trained decoder weights, shomework-1.texet up a directory containing `.pth` weight files with the form
 ```bash
 Relu1_1_decoder_state.pth
 Relu2_1_decoder_state.pth

@@ -6,8 +6,14 @@ from utils import output_value_hook, sliced_transport, image_preprocessing, vgg_
 
 
 class StyleTransfer(Generator):
+    """Style transfer model.
+    """
 
-    def __init__(self, style_image, content_image, observed_layers, n_bins=128, decoder_weights_path=None):
+    def __init__(self, style_image, content_image, observed_layers, n_bins=128):
+        """
+        :param content_image: content image
+        :type content_image: PIL Image object
+        """
 
         super().__init__(style_image, observed_layers, n_bins=n_bins)
         # input image
@@ -17,6 +23,15 @@ class StyleTransfer(Generator):
         self.content_batch = self.content_tensor.unsqueeze(0)
 
     def transfer(self, n_passes=5, content_strength=0.5):
+        """Style transfer 
+
+        :param n_passes: number of global passes, defaults to 5
+        :type n_passes: int, optional
+        :param content_strength: content strength, defaults to 0.5
+        :type content_strength: float, optional
+        :return: generated images layer by layer, step by step
+        :rtype: list
+        """
 
         self.n_passes = n_passes
         pass_generated_images = []

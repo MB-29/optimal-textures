@@ -2,6 +2,10 @@
 import torch
 import torch.nn as nn
 
+"""Decoder models. Layer-specific, editable information is stored
+in the dictionary observed_layers at the bottom of the file.
+"""
+
 
 feature_invertor_conv1_1 = nn.Sequential(  # Sequential,
 	nn.ReflectionPad2d((1, 1, 1, 1)),

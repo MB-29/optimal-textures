@@ -6,15 +6,26 @@ from torchvision.models import vgg19
 import matplotlib.pyplot as plt
 from scipy.stats import ortho_group
 
-from utils import output_value_hook, sliced_transport, image_preprocessing, vgg_normalization
+from utils import activation_value_hook, sliced_transport, image_preprocessing, vgg_normalization
 
 
 class Generator:
+    """Texture generator model.
+    """
 
-    def __init__(self, image, observed_layers, n_bins=128):
+    def __init__(self, source_image, observed_layers, n_bins=128):
+        """
+
+        :param source_image: source image
+        :type image: PIL Image object
+        :param observed_layers: dictionary containing layer-specific information ; see bottom of file decoders.py
+        :type observed_layers: dictionary
+        :param n_bins: number of transportation histogram bins, defaults to 128 [TO  BE IMPLEMENTED]
+        :type n_bins: int, optional
+        """
 
         # source image
-        self.source_tensor = image_preprocessing(image)
+        self.source_tensor = image_preprocessing(source_image)
         self.normalized_source_batch = vgg_normalization(
             self.source_tensor).unsqueeze(0)
         self.source_batch = self.source_tensor.unsqueeze(0)
@@ -30,6 +41,11 @@ class Generator:
         self.n_bins = n_bins
 
     def set_encoder_hooks(self, observed_layers):
+        """Set up hooks to observe the acivation value of the encoder layers. 
+
+        :param observed_layers: layer information
+        :type observed_layers: dictionary
+        """
 
         self.observed_layers = observed_layers
         self.error_values = {layer_name: []
@@ -42,9 +58,16 @@ class Generator:
             layer_index = layer_information['index']
             layer = self.encoder.features[layer_index]
             layer.register_forward_hook(
-                output_value_hook(layer_name, self.encoder_layers))
+                activation_value_hook(layer_name, self.encoder_layers))
 
     def set_layer_decoders(self, train=False, state_dir_path='decoder_states'):
+        """Load decoder weights or train decoders.
+
+        :param train: train the decoders on the provided source image, defaults to False
+        :type train: bool, optional
+        :param state_dir_path: relative path to the directory containing .pth decoder weight files, defaults to 'decoder_states'
+        :type state_dir_path: str, optional
+        """
 
         # train
         if train:
@@ -73,6 +96,13 @@ class Generator:
                 decoder = decoder.float()
 
     def generate(self, n_passes=5):
+        """Image generation process.
+
+        :param n_passes: number of global passes, defaults to 5
+        :type n_passes: int, optional
+        :return: generated images layer by layer, step by step
+        :rtype: list
+        """
 
         self.n_passes = n_passes
         pass_generated_images = []
@@ -111,6 +141,18 @@ class Generator:
         return pass_generated_images
 
     def optimal_transport(self, layer_name, source_layer, target_layer):
+        """Sliced optimal transportation of the activation values source_layer towards target_layer,
+            seen as pointclouds of an Eucliean space of dimension n_channels.
+
+        :param layer_name: layer name, as stored in 'observed_layers' dictionary
+        :type layer_name: string
+        :param source_layer: source activation tensor of shape (n_channels, width, height)
+        :type source_layer: tensor
+        :param target_layer: target activation tensor of shape (n_channels, width, height)
+        :type target_layer: tensor
+        :return: transported tensor
+        :rtype: tensor
+        """
 
         n_channels = source_layer.shape[0]
         assert n_channels == target_layer.shape[0]
@@ -136,7 +178,12 @@ class Generator:
 
         return target_layer
 
-    def reconstruct(self, noise_size=0):
+    def reconstruct(self):
+        """Encode and decode the source image through the different observed layers.
+
+        :return: generated images, list of size n_layers
+        :rtype: list
+        """
 
         reconstructed_images = []
 
@@ -146,8 +193,6 @@ class Generator:
             self.encoder(self.normalized_source_batch)
             source_layer = self.encoder_layers[layer_name]
 
-            source_layer += noise_size * torch.randn_like(source_layer)
-
             decoder = layer_information['decoder']
             input_reconstruction = np.transpose(
                 decoder(source_layer), (1, 2, 0)).copy()
@@ -156,6 +201,11 @@ class Generator:
         return reconstructed_images
 
     def train_decoder(self, layer_name):
+        """Train the decoder corresponding to layer layer_name
+
+        :return: epoch loss values 
+        :rtype: list
+        """
         decoder = self.observed_layers[layer_name]['decoder']
         n_epochs = self.observed_layers[layer_name]['n_epochs']
         learning_rate = self.observed_layers[layer_name].get(

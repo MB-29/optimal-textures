@@ -12,7 +12,7 @@ An implementation of the texture generation algorithm proposed in [Optimal Textu
 
 ## Usage 
 
-* In order to used pre-trained decoder weights, shomework-1.texet up a directory containing `.pth` weight files with the form
+* In order to used pre-trained decoder weights, set up a directory containing `.pth` weight files with the form
 ```bash
 Relu1_1_decoder_state.pth
 Relu2_1_decoder_state.pth

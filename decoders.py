@@ -1,5 +1,3 @@
-
-import torch
 import torch.nn as nn
 
 """Decoder models. Layer-specific, editable information is stored

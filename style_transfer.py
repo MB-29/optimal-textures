@@ -2,7 +2,7 @@ import numpy as np
 import torch
 
 from generator import Generator
-from utils import output_value_hook, sliced_transport, image_preprocessing, vgg_normalization
+from utils import image_preprocessing, vgg_normalization
 
 
 class StyleTransfer(Generator):

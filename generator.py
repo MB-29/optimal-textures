@@ -3,7 +3,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torchvision.models import vgg19
-import matplotlib.pyplot as plt
 from scipy.stats import ortho_group
 
 from utils import activation_value_hook, sliced_transport, image_preprocessing, vgg_normalization
